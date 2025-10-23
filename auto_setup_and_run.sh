@@ -45,6 +45,10 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
+# Setup web assets
+echo "Setting up web assets..."
+python setup_web_assets.py > /dev/null 2>&1
+
 echo
 echo "===================================="
 echo "SETUP COMPLETE - LAUNCHING CASEBOARD"
