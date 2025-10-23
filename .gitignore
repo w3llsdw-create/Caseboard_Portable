@@ -43,6 +43,7 @@ coverage/
 # Data backups (keep the actual backup files)
 data/*.tmp
 data/*.backup_*
+data/backups/*.json
 
 # IDE
 .idea/
