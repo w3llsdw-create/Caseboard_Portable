@@ -1,0 +1,30 @@
+# Editors
+.vscode/
+*.code-workspace
+
+# Windows noise
+Thumbs.db
+Desktop.ini
+
+# Node/JS
+node_modules/
+dist/
+build/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# .NET / C/C++
+bin/
+obj/
+*.user
+*.suo
+*.vcxproj.user
+
+# Logs and env
+*.log
+.env*
+coverage/

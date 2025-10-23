@@ -1,0 +1,897 @@
+Caseboard Web Dashboard Snapshot
+================================
+Date: 2025-10-23
+
+Overview
+--------
+- FastAPI backend (`web/main.py`) serves static assets and `/cases` endpoint backed by `data/cases.json`.
+- Tailwind-based front-end (`web/static/index.html`) delivers a dense 12-column layout tuned for 1080p/4K TV displays.
+- Vanilla JS controller (`web/static/main.js`) handles polling, diff-updating the ledger, rendering right-rail cards, and PiP persistence for the embedded CBS News stream.
+- Launch locally with `RUN_WEB_DASHBOARD.bat` (calls `python run_web.py`, which starts FastAPI via Uvicorn).
+
+Backend (FastAPI)
+-----------------
+File: web/main.py
+
+```
+from __future__ import annotations
+
+import json
+from datetime import datetime
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_PATH = BASE_DIR / "data" / "cases.json"
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+app = FastAPI(title="Caseboard Web Dashboard", version="1.0.0")
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.get("/", response_class=FileResponse)
+async def root() -> FileResponse:
+    """Serve the main dashboard shell."""
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/cases")
+async def get_cases() -> dict[str, object]:
+    """Return the raw case data along with a generated timestamp."""
+    if not DATA_PATH.exists():
+        raise HTTPException(status_code=404, detail="cases.json not found")
+
+    try:
+        with DATA_PATH.open("r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except json.JSONDecodeError as exc:  # pragma: no cover - defensive
+        raise HTTPException(status_code=500, detail="Invalid cases.json format") from exc
+
+    return {
+        "meta": {
+            "version": payload.get("version"),
+            "saved_at": payload.get("saved_at"),
+        },
+        "cases": payload.get("cases", []),
+        "generated_at": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+    }
+```
+
+Front-End Shell (Tailwind HTML)
+------------------------------
+File: web/static/index.html
+
+```
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Caseboard Command Center</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        midnight: "#070d1c",
+                        indigoGlow: "#243c66",
+                        success: "#38ef7d",
+                    },
+                    fontFamily: {
+                        sans: ['"Inter"', 'ui-sans-serif', 'system-ui'],
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        body {
+            background: radial-gradient(circle at top, rgba(36, 60, 102, 0.45), rgba(7, 13, 28, 0.95)), #05080f;
+        }
+        .card-shadow {
+            box-shadow: 0 24px 48px -24px rgba(8, 15, 30, 0.85);
+        }
+        .tabular-nums {
+            font-variant-numeric: tabular-nums;
+        }
+        .focus-outline-none:focus {
+            outline: none;
+        }
+    </style>
+</head>
+<body class="font-sans text-slate-100 min-h-screen overflow-hidden">
+    <div class="relative flex min-h-screen flex-col">
+        <header class="px-6 pt-6 pb-3 md:px-8">
+            <div class="flex h-16 items-center justify-between gap-4">
+                <div class="flex flex-wrap items-baseline gap-x-6 gap-y-1">
+                    <h1 class="text-2xl font-semibold tracking-wide text-white">Caseboard Command Center</h1>
+                    <p id="last-sync" class="text-sm text-slate-300">Snapshot loading…</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span class="inline-flex h-10 items-center gap-2 rounded-full bg-indigo-500/20 px-4 py-2 text-xs uppercase tracking-[0.25em] text-slate-200 ring-1 ring-indigo-400/30 card-shadow">
+                        <span class="h-2 w-2 animate-pulse rounded-full bg-success"></span>
+                        Live refresh
+                    </span>
+                    <button id="refresh-btn" class="inline-flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.25em] text-slate-200 transition hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+                        Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="mt-3 h-1 w-full rounded-full bg-gradient-to-r from-sky-400 via-indigo-400 to-purple-500"></div>
+        </header>
+
+        <main class="flex-1 px-6 pb-6 md:px-8">
+            <div class="grid h-full grid-cols-12 gap-3 md:gap-4 xl:gap-6">
+                <section id="stat-chips" class="col-span-12 flex flex-wrap items-center gap-3"></section>
+
+                <section class="col-span-12 xl:col-span-8">
+                    <div id="cases-panel" class="card-shadow flex h-[calc(100vh-220px)] min-h-[480px] flex-col overflow-hidden rounded-2xl bg-white/5 backdrop-blur-md ring-1 ring-white/5">
+                        <div class="flex items-center justify-between px-4 py-3 md:px-5">
+                            <h2 class="text-sm font-semibold uppercase tracking-[0.35em] text-slate-200">Active Case Ledger</h2>
+                            <span id="case-count" class="text-xs uppercase tracking-[0.3em] text-slate-400">0 Cases</span>
+                        </div>
+                        <div class="flex-1 min-h-0 overflow-hidden">
+                            <div id="cases-scroll" class="h-full w-full overflow-auto">
+                                <table id="cases-table" class="min-w-full border-separate border-spacing-0 text-sm leading-5 text-slate-100">
+                                    <thead id="cases-table-head" class="sticky top-0 z-40 bg-midnight/95 text-left text-xs uppercase tracking-[0.3em] text-slate-300 backdrop-blur-lg">
+                                        <tr>
+                                            <th scope="col" class="sticky left-0 z-40 w-32 whitespace-nowrap px-4 py-3 md:px-5">Case #</th>
+                                            <th scope="col" class="sticky left-32 z-30 min-w-[220px] whitespace-nowrap px-4 py-3 md:px-5">Name</th>
+                                            <th scope="col" class="whitespace-nowrap px-4 py-3 md:px-5">Type</th>
+                                            <th scope="col" class="whitespace-nowrap px-4 py-3 md:px-5">Stage</th>
+                                            <th scope="col" class="whitespace-nowrap px-4 py-3 md:px-5">Attention</th>
+                                            <th scope="col" class="whitespace-nowrap px-4 py-3 md:px-5">Status</th>
+                                            <th scope="col" class="whitespace-nowrap px-4 py-3 md:px-5">Paralegal</th>
+                                            <th scope="col" class="min-w-[220px] whitespace-nowrap px-4 py-3 md:px-5">Focus</th>
+                                            <th scope="col" class="whitespace-nowrap px-4 py-3 text-right md:px-5">Next Due</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="cases-body"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <aside class="col-span-12 flex flex-col gap-3 md:gap-4 xl:col-span-4 xl:gap-6 xl:h-[calc(100vh-220px)] xl:min-h-0">
+                    <div class="card-shadow flex flex-1 flex-col overflow-hidden rounded-2xl bg-white/5 backdrop-blur-md ring-1 ring-white/5">
+                        <div class="flex items-center justify-between px-4 py-3 md:px-5">
+                            <h3 class="text-sm font-semibold uppercase tracking-[0.35em] text-slate-200">Deadline Radar</h3>
+                            <span id="deadline-meta" class="text-xs uppercase tracking-[0.3em] text-slate-400">--</span>
+                        </div>
+                        <div id="deadlines-list" class="flex-1 overflow-y-auto px-4 py-2 md:px-5"></div>
+                    </div>
+
+                    <div class="card-shadow flex flex-1 flex-col overflow-hidden rounded-2xl bg-white/5 backdrop-blur-md ring-1 ring-white/5">
+                        <div class="flex items-center justify-between px-4 py-3 md:px-5">
+                            <h3 class="text-sm font-semibold uppercase tracking-[0.35em] text-slate-200">Practice Mix</h3>
+                            <span id="practice-meta" class="text-xs uppercase tracking-[0.3em] text-slate-400">--</span>
+                        </div>
+                        <div id="practice-list" class="flex-1 overflow-y-auto px-4 py-2 md:px-5"></div>
+                    </div>
+                </aside>
+            </div>
+        </main>
+    </div>
+
+    <div id="pip-wrapper" class="pointer-events-none fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+        <div id="pip-controls" class="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-[0.65rem] uppercase tracking-[0.25em] text-slate-200 shadow-lg ring-1 ring-white/10">
+            <span class="text-slate-400">PiP</span>
+            <button data-pip-size="sm" class="rounded-full bg-white/10 px-2 py-1 text-slate-200 transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Sm</button>
+            <button data-pip-size="md" class="rounded-full bg-white/10 px-2 py-1 text-slate-200 transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Md</button>
+            <button data-pip-size="lg" class="rounded-full bg-white/10 px-2 py-1 text-slate-200 transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Lg</button>
+            <button id="pip-toggle" class="rounded-full bg-white/10 px-2 py-1 text-slate-200 transition hover:bg-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Hide</button>
+        </div>
+        <div id="pip-frame" class="pointer-events-auto overflow-hidden rounded-xl bg-black shadow-xl ring-1 ring-white/10">
+            <iframe
+                src="https://www.youtube.com/embed/live_stream?channel=UC8p1vwvWtl6T73JiExfWs1g"
+                title="CBS News 24/7"
+                allow="autoplay; encrypted-media"
+                allowfullscreen
+                class="h-[214px] w-[380px]"
+            ></iframe>
+        </div>
+    </div>
+
+    <script type="module" src="/static/main.js"></script>
+</body>
+</html>
+```
+
+Front-End Logic (Vanilla JS)
+---------------------------
+File: web/static/main.js
+
+```
+const REFRESH_INTERVAL = 60_000;
+const PIP_STORAGE_KEY = "caseboard:pip-settings";
+
+const BADGE_TONES = {
+    active: "bg-emerald-500/20 text-emerald-300",
+    alert: "bg-amber-500/20 text-amber-300",
+    wait: "bg-slate-500/20 text-slate-300",
+    neutral: "bg-white/10 text-slate-200",
+};
+
+const ATTENTION_LABELS = {
+    waiting: "Waiting",
+    needs_attention: "Needs Attention",
+};
+
+const STATUS_DETAILS = {
+    open: { label: "Active", tone: "active" },
+    filed: { label: "Filed", tone: "active" },
+    "pre-filing": { label: "Pre-Filing", tone: "wait" },
+    closed: { label: "Closed", tone: "neutral" },
+};
+
+const COLUMN_DEFS = [
+    {
+        id: "case_number",
+        createCell: (item) => {
+            const td = document.createElement("td");
+            td.className = "sticky left-0 z-30 w-32 px-4 py-2 md:px-5 font-semibold text-slate-100 tabular-nums bg-midnight/80 backdrop-blur";
+            td.textContent = item.case_number || "—";
+            return td;
+        },
+        updateCell: (td, item) => {
+            td.textContent = item.case_number || "—";
+        },
+    },
+    {
+        id: "case_name",
+        createCell: (item) => {
+            const td = document.createElement("td");
+            td.className = "sticky left-32 z-20 min-w-0 max-w-[360px] px-4 py-2 md:px-5 text-slate-100 bg-midnight/70 backdrop-blur";
+            const text = document.createElement("div");
+            text.className = "truncate";
+            text.textContent = item.case_name || item.case_number || "—";
+            text.title = item.case_name || item.case_number || "—";
+            td.appendChild(text);
+            return td;
+        },
+        updateCell: (td, item) => {
+            const text = td.firstChild;
+            const value = item.case_name || item.case_number || "—";
+            text.textContent = value;
+            text.title = value;
+        },
+    },
+    {
+        id: "case_type",
+        createCell: (item) => {
+            const td = document.createElement("td");
+            td.className = "min-w-[150px] px-4 py-2 md:px-5 text-slate-200";
+            td.textContent = item.case_type || "—";
+            return td;
+        },
+        updateCell: (td, item) => {
+            td.textContent = item.case_type || "—";
+        },
+    },
+    {
+        id: "stage",
+        createCell: (item) => {
+            const td = document.createElement("td");
+            td.className = "min-w-[140px] px-4 py-2 md:px-5 text-slate-200";
+            td.textContent = item.stage || "—";
+            return td;
+        },
+        updateCell: (td, item) => {
+            td.textContent = item.stage || "—";
+        },
+    },
+    {
+        id: "attention",
+        createCell: (item) => {
+            const td = document.createElement("td");
+            td.className = "min-w-[150px] px-4 py-2 md:px-5";
+            td.appendChild(createAttentionBadge(item.attention));
+            return td;
+        },
+        updateCell: (td, item) => {
+            td.replaceChildren(createAttentionBadge(item.attention));
+        },
+    },
+    {
+        id: "status",
+        createCell: (item) => {
+            const td = document.createElement("td");
+            td.className = "min-w-[140px] px-4 py-2 md:px-5";
+            td.appendChild(createStatusBadge(item.status));
+            return td;
+        },
+        updateCell: (td, item) => {
+            td.replaceChildren(createStatusBadge(item.status));
+        },
+    },
+    {
+        id: "paralegal",
+        createCell: (item) => {
+            const td = document.createElement("td");
+            td.className = "min-w-[140px] px-4 py-2 md:px-5 text-slate-200";
+            td.textContent = item.paralegal || "—";
+            return td;
+        },
+        updateCell: (td, item) => {
+            td.textContent = item.paralegal || "—";
+        },
+    },
+    {
+        id: "focus",
+        createCell: (item) => {
+            const td = document.createElement("td");
+            td.className = "min-w-0 max-w-[420px] px-4 py-2 md:px-5 text-slate-200";
+            const text = document.createElement("div");
+            text.className = "truncate";
+            const value = item.current_task || "—";
+            text.textContent = value;
+            text.title = value;
+            td.appendChild(text);
+            return td;
+        },
+        updateCell: (td, item) => {
+            const text = td.firstChild;
+            const value = item.current_task || "—";
+            text.textContent = value;
+            text.title = value;
+        },
+    },
+    {
+        id: "next_due",
+        createCell: (item) => {
+            const td = document.createElement("td");
+            td.className = "w-40 px-4 py-2 text-right md:px-5 text-slate-100 tabular-nums";
+            td.textContent = formatNextDue(item);
+            return td;
+        },
+        updateCell: (td, item) => {
+            td.textContent = formatNextDue(item);
+        },
+    },
+];
+
+const elements = {
+    chips: document.getElementById("stat-chips"),
+    casesBody: document.getElementById("cases-body"),
+    caseCount: document.getElementById("case-count"),
+    deadlines: document.getElementById("deadlines-list"),
+    deadlineMeta: document.getElementById("deadline-meta"),
+    practice: document.getElementById("practice-list"),
+    practiceMeta: document.getElementById("practice-meta"),
+    lastSync: document.getElementById("last-sync"),
+    refreshBtn: document.getElementById("refresh-btn"),
+    pipWrapper: document.getElementById("pip-wrapper"),
+    pipFrame: document.getElementById("pip-frame"),
+    pipToggle: document.getElementById("pip-toggle"),
+    pipControls: document.getElementById("pip-controls"),
+};
+
+if (elements.refreshBtn) {
+    elements.refreshBtn.addEventListener("click", () => loadDashboard(true));
+}
+
+if (elements.pipControls) {
+    elements.pipControls.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLButtonElement)) return;
+
+        const size = target.dataset.pipSize;
+        if (size) {
+            setPipSize(size);
+            return;
+        }
+
+        if (target === elements.pipToggle) {
+            togglePipVisibility();
+        }
+    });
+}
+
+const state = {
+    pipSize: "md",
+    pipVisible: true,
+};
+
+restorePipPreferences();
+applyPipSize(state.pipSize);
+applyPipVisibility(state.pipVisible);
+
+async function loadDashboard(isManual = false) {
+    try {
+        if (isManual) {
+            disableRefresh(true);
+        }
+
+        const response = await fetch("/cases", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const payload = await response.json();
+
+        const cases = Array.isArray(payload.cases) ? payload.cases : [];
+        const stats = summarizeCases(cases);
+        const deadlines = computeDeadlines(cases);
+
+        renderChips(stats);
+        renderPracticeMix(stats);
+        renderDeadlines(deadlines);
+        renderCases(cases);
+        updateSnapshotTime(payload.meta?.saved_at, payload.generated_at);
+    } catch (error) {
+        console.error("Failed to load dashboard", error);
+        elements.lastSync.textContent = "Unable to load data";
+    } finally {
+        if (isManual) {
+            disableRefresh(false);
+        }
+    }
+}
+
+function disableRefresh(isDisabled) {
+    if (!elements.refreshBtn) return;
+    if (isDisabled) {
+        elements.refreshBtn.setAttribute("disabled", "true");
+        elements.refreshBtn.classList.add("opacity-60", "cursor-wait");
+    } else {
+        elements.refreshBtn.removeAttribute("disabled");
+        elements.refreshBtn.classList.remove("opacity-60", "cursor-wait");
+    }
+}
+
+function summarizeCases(cases) {
+    const byType = new Map();
+    let active = 0;
+    let attention = 0;
+    let closed = 0;
+
+    cases.forEach((item) => {
+        const type = item.case_type || "Other";
+        byType.set(type, (byType.get(type) || 0) + 1);
+
+        if (["open", "filed", "pre-filing"].includes(item.status)) {
+            active += 1;
+        }
+        if (item.status === "closed") {
+            closed += 1;
+        }
+        if (item.attention === "needs_attention") {
+            attention += 1;
+        }
+    });
+
+    return {
+        total: cases.length,
+        active,
+        attention,
+        closed,
+        byType,
+    };
+}
+
+function renderChips(stats) {
+    elements.chips.replaceChildren();
+
+    const chips = [
+        {
+            key: "total",
+            label: "Total",
+            value: stats.total,
+            icon: totalIcon(),
+        },
+        {
+            key: "active",
+            label: "Active",
+            value: stats.active,
+            icon: pulseIcon(),
+        },
+        {
+            key: "attention",
+            label: "Needs Attention",
+            value: stats.attention,
+            icon: alertIcon(),
+        },
+        {
+            key: "closed",
+            label: "Closed",
+            value: stats.closed,
+            icon: archiveIcon(),
+        },
+    ];
+
+    chips.forEach((chip) => {
+        const container = document.createElement("article");
+        container.className = "focus-outline-none flex h-16 min-h-[56px] items-center gap-3 rounded-xl bg-white/5 px-4 py-3 ring-1 ring-white/10";
+        container.setAttribute("aria-hidden", "true");
+
+        const iconWrap = document.createElement("div");
+        iconWrap.className = "flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-indigo-200";
+        iconWrap.innerHTML = chip.icon;
+
+        const textWrap = document.createElement("div");
+        textWrap.className = "flex flex-col leading-tight";
+        const value = document.createElement("span");
+        value.className = "text-xl font-semibold tabular-nums";
+        value.textContent = chip.value.toString();
+        const label = document.createElement("span");
+        label.className = "text-xs uppercase tracking-[0.3em] text-slate-300";
+        label.textContent = chip.label;
+
+        textWrap.appendChild(value);
+        textWrap.appendChild(label);
+        container.appendChild(iconWrap);
+        container.appendChild(textWrap);
+        elements.chips.appendChild(container);
+    });
+}
+
+function renderPracticeMix(stats) {
+    elements.practice.replaceChildren();
+    const entries = Array.from(stats.byType.entries()).sort((a, b) => b[1] - a[1]);
+    if (elements.practiceMeta) {
+        elements.practiceMeta.textContent = `${entries.length} categories`;
+    }
+
+    const total = Math.max(stats.total, 1);
+
+    entries.forEach(([label, count]) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "flex flex-col gap-1 py-2";
+
+        const header = document.createElement("div");
+        header.className = "flex items-center justify-between text-sm";
+        const name = document.createElement("span");
+        name.className = "font-medium text-slate-100";
+        name.textContent = label;
+        const meta = document.createElement("span");
+        meta.className = "text-slate-300 tabular-nums";
+        const pct = Math.round((count / total) * 100);
+        meta.textContent = `${count} • ${pct}%`;
+
+        header.appendChild(name);
+        header.appendChild(meta);
+
+        const bar = document.createElement("div");
+        bar.className = "h-1.5 w-full rounded-full bg-white/10";
+        const fill = document.createElement("div");
+        fill.className = "h-full rounded-full bg-gradient-to-r from-indigo-400 to-sky-400";
+        fill.style.width = `${Math.max(6, pct)}%`;
+        bar.appendChild(fill);
+
+        wrapper.appendChild(header);
+        wrapper.appendChild(bar);
+        elements.practice.appendChild(wrapper);
+    });
+
+    if (entries.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "py-4 text-sm text-slate-300";
+        empty.textContent = "No practice mix recorded.";
+        elements.practice.appendChild(empty);
+    }
+}
+
+function computeDeadlines(cases) {
+    const today = new Date();
+    const items = [];
+
+    cases.forEach((caseItem) => {
+        const relevant = (caseItem.deadlines || []).filter(
+            (deadline) => deadline && !deadline.resolved && deadline.due_date,
+        );
+
+        relevant.forEach((deadline) => {
+            const due = new Date(`${deadline.due_date}T00:00:00`);
+            if (Number.isNaN(due.getTime())) return;
+            items.push({ caseItem, deadline, due });
+        });
+    });
+
+    items.sort((a, b) => a.due - b.due);
+    const upcoming = items.slice(0, 6).map((entry) => {
+        const diffDays = Math.round((entry.due - today) / 86_400_000);
+        let tone = "border-white/10 text-slate-200";
+        if (diffDays < 0) tone = "border-rose-400/40 text-rose-200";
+        else if (diffDays === 0) tone = "border-amber-400/40 text-amber-200";
+        else if (diffDays <= 3) tone = "border-orange-400/40 text-orange-200";
+
+        return {
+            ...entry,
+            diffDays,
+            dueLabel: formatDate(entry.deadline.due_date),
+            badge: diffDays < 0 ? `${Math.abs(diffDays)}d late` : diffDays === 0 ? "Due today" : `In ${diffDays}d`,
+            tone,
+        };
+    });
+
+    return { upcoming, total: items.length };
+}
+
+function renderDeadlines(deadlines) {
+    elements.deadlines.replaceChildren();
+
+    if (!deadlines.upcoming.length) {
+        const empty = document.createElement("p");
+        empty.className = "py-6 text-sm text-slate-300";
+        empty.textContent = "No upcoming deadlines logged.";
+        elements.deadlines.appendChild(empty);
+        if (elements.deadlineMeta) {
+            elements.deadlineMeta.textContent = "0 upcoming";
+        }
+        return;
+    }
+
+    if (elements.deadlineMeta) {
+        elements.deadlineMeta.textContent = `${deadlines.upcoming.length} of ${deadlines.total}`;
+    }
+
+    deadlines.upcoming.forEach((entry) => {
+        const card = document.createElement("article");
+        card.className = `border-l-4 ${entry.tone} px-3 py-3 md:px-4 md:py-4`;
+
+        const header = document.createElement("div");
+        header.className = "flex items-start justify-between gap-3";
+
+        const left = document.createElement("div");
+        const caseName = document.createElement("p");
+        caseName.className = "font-semibold text-slate-100";
+        caseName.textContent = entry.caseItem.case_name || entry.caseItem.case_number || "—";
+        const desc = document.createElement("p");
+        desc.className = "text-xs text-slate-300";
+        desc.textContent = entry.deadline.description || "—";
+
+        left.appendChild(caseName);
+        left.appendChild(desc);
+
+        const right = document.createElement("div");
+        right.className = "text-right";
+        const badge = document.createElement("p");
+        badge.className = "text-xs uppercase tracking-[0.25em] text-slate-200";
+        badge.textContent = entry.badge;
+        const dueDate = document.createElement("p");
+        dueDate.className = "text-xs text-slate-400 tabular-nums";
+        dueDate.textContent = entry.dueLabel;
+
+        right.appendChild(badge);
+        right.appendChild(dueDate);
+
+        header.appendChild(left);
+        header.appendChild(right);
+        card.appendChild(header);
+        elements.deadlines.appendChild(card);
+    });
+}
+
+function renderCases(cases) {
+    const tbody = elements.casesBody;
+    const existing = new Map();
+    Array.from(tbody.children).forEach((row) => {
+        if (row instanceof HTMLTableRowElement) {
+            existing.set(row.dataset.caseId || "", row);
+        }
+    });
+
+    const fragment = document.createDocumentFragment();
+
+    cases.forEach((item, index) => {
+        const key = item.id || item.case_number || `case-${index}`;
+        const row = existing.get(key);
+        if (row) {
+            updateRow(row, item, index);
+            existing.delete(key);
+            fragment.appendChild(row);
+        } else {
+            fragment.appendChild(buildRow(item, index, key));
+        }
+    });
+
+    existing.forEach((row) => row.remove());
+    tbody.appendChild(fragment);
+    if (elements.caseCount) {
+        elements.caseCount.textContent = `${cases.length} Cases`;
+    }
+}
+
+function buildRow(item, index, key) {
+    const row = document.createElement("tr");
+    row.dataset.caseId = key;
+    applyRowStyling(row, index);
+
+    COLUMN_DEFS.forEach((column) => {
+        row.appendChild(column.createCell(item));
+    });
+
+    row.classList.add("transition-colors", "hover:ring-1", "hover:ring-white/10");
+    return row;
+}
+
+function updateRow(row, item, index) {
+    row.dataset.caseId = item.id || row.dataset.caseId;
+    applyRowStyling(row, index);
+
+    COLUMN_DEFS.forEach((column, columnIndex) => {
+        const cell = row.children[columnIndex];
+        if (cell) column.updateCell(cell, item);
+    });
+}
+
+function applyRowStyling(row, index) {
+    row.className = "border-b border-white/5 text-sm leading-5 transition-colors hover:bg-white/10 hover:ring-1 hover:ring-white/10";
+    row.classList.remove("bg-white/5", "bg-white/10");
+    row.classList.add(index % 2 === 0 ? "bg-white/5" : "bg-white/10");
+}
+
+function createAttentionBadge(attention) {
+    const badge = document.createElement("span");
+    badge.className = "inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs uppercase tracking-[0.25em]";
+
+    if (attention === "needs_attention") {
+        badge.className += ` ${BADGE_TONES.alert}`;
+        badge.textContent = ATTENTION_LABELS.needs_attention;
+    } else {
+        badge.className += ` ${BADGE_TONES.wait}`;
+        badge.textContent = ATTENTION_LABELS.waiting;
+    }
+
+    return badge;
+}
+
+function createStatusBadge(status) {
+    const badge = document.createElement("span");
+    badge.className = "inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs uppercase tracking-[0.25em]";
+
+    const details = STATUS_DETAILS[status] || { label: status || "—", tone: "neutral" };
+    badge.className += ` ${BADGE_TONES[details.tone] || BADGE_TONES.neutral}`;
+    badge.textContent = details.label || "—";
+
+    return badge;
+}
+
+function formatNextDue(caseItem) {
+    const deadlines = (caseItem.deadlines || []).filter((deadline) => deadline && !deadline.resolved && deadline.due_date);
+    if (!deadlines.length) return "—";
+
+    const sorted = deadlines
+        .map((deadline) => ({ ...deadline, due: new Date(`${deadline.due_date}T00:00:00`) }))
+        .filter((deadline) => !Number.isNaN(deadline.due.getTime()))
+        .sort((a, b) => a.due - b.due);
+
+    if (!sorted.length) return "—";
+
+    const next = sorted[0];
+    const today = new Date();
+    const diffDays = Math.round((next.due - today) / 86_400_000);
+    const label = formatDate(next.due_date);
+
+    if (diffDays < 0) return `${label} (${Math.abs(diffDays)}d late)`;
+    if (diffDays === 0) return `${label} (today)`;
+    return `${label} (${diffDays}d)`;
+}
+
+function formatDate(value) {
+    if (!value) return "—";
+    const parsed = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return "—";
+    return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function updateSnapshotTime(savedAt, generatedAt) {
+    const source = savedAt || generatedAt;
+    if (!source) {
+        elements.lastSync.textContent = "Snapshot unavailable";
+        return;
+    }
+    const parsed = new Date(source);
+    if (Number.isNaN(parsed.getTime())) {
+        elements.lastSync.textContent = "Snapshot unavailable";
+        return;
+    }
+    elements.lastSync.textContent = `Snapshot: ${parsed.toLocaleString()}`;
+}
+
+function totalIcon() {
+    return '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path d="M4 4h12v2H4V4zm0 5h12v2H4V9zm0 5h12v2H4v-2z" /></svg>';
+}
+
+function pulseIcon() {
+    return '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path d="M3 11h3l1.5-5 3 10 2-6H17" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+
+function alertIcon() {
+    return '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path d="M9.401 3.173a1 1 0 011.198 0l6.4 4.8A1 1 0 0116.4 10H3.6a1 1 0 01-.599-2l6.4-4.8zM10 11a1 1 0 100 2 1 1 0 000-2z" /></svg>';
+}
+
+function archiveIcon() {
+    return '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path d="M4 4h12a1 1 0 011 1v2H3V5a1 1 0 011-1zm-1 5h14v6a1 1 0 01-1 1H4a1 1 0 01-1-1V9zm4 2v2h6v-2H7z" /></svg>';
+}
+
+function restorePipPreferences() {
+    try {
+        const stored = localStorage.getItem(PIP_STORAGE_KEY);
+        if (!stored) return;
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === "object") {
+            if (parsed.size && ["sm", "md", "lg"].includes(parsed.size)) {
+                state.pipSize = parsed.size;
+            }
+            if (typeof parsed.visible === "boolean") {
+                state.pipVisible = parsed.visible;
+            }
+        }
+    } catch (error) {
+        console.warn("Failed to restore PiP settings", error);
+    }
+}
+
+function persistPipPreferences() {
+    const payload = {
+        size: state.pipSize,
+        visible: state.pipVisible,
+    };
+    try {
+        localStorage.setItem(PIP_STORAGE_KEY, JSON.stringify(payload));
+    } catch (error) {
+        console.warn("Unable to persist PiP settings", error);
+    }
+}
+
+function applyPipSize(size) {
+    const iframe = elements.pipFrame?.querySelector("iframe");
+    if (!iframe) return;
+    const sizes = {
+        sm: ["w-[300px]", "h-[169px]"],
+        md: ["w-[380px]", "h-[214px]"],
+        lg: ["w-[480px]", "h-[270px]"],
+    };
+    Object.values(sizes).flat().forEach((cls) => iframe.classList.remove(cls));
+    (sizes[size] || sizes.md).forEach((cls) => iframe.classList.add(cls));
+}
+
+function setPipSize(size) {
+    state.pipSize = size;
+    applyPipSize(size);
+    persistPipPreferences();
+}
+
+function applyPipVisibility(isVisible) {
+    if (!elements.pipFrame) return;
+    if (isVisible) {
+        elements.pipFrame.classList.remove("hidden");
+        if (elements.pipToggle) elements.pipToggle.textContent = "Hide";
+    } else {
+        elements.pipFrame.classList.add("hidden");
+        if (elements.pipToggle) elements.pipToggle.textContent = "Show";
+    }
+    if (elements.pipToggle) {
+        elements.pipToggle.setAttribute("aria-pressed", String(!isVisible));
+    }
+}
+
+function togglePipVisibility() {
+    state.pipVisible = !state.pipVisible;
+    applyPipVisibility(state.pipVisible);
+    persistPipPreferences();
+}
+
+loadDashboard(false);
+setInterval(() => loadDashboard(false), REFRESH_INTERVAL);
+```
+
+Launch Instructions
+-------------------
+1. Ensure dependencies are installed (first run: `SETUP_AND_RUN.bat`).
+2. Start the web dashboard via `RUN_WEB_DASHBOARD.bat` (runs `python run_web.py`).
+3. Open `http://127.0.0.1:8000/` in a browser or kiosk display.
+4. Dashboard polls `/cases` every 60 seconds and offers PiP controls (sm/md/lg/hide) with state persisted via `localStorage`.
+
+Hardware Target
+---------------
+- Optimized for 1080p/4K TV viewing (55" reference).
+- No outer scroll; case table header sticks with internal scroll, right rail cards scroll independently.
+- Embedded CBS News 24/7 live stream (YouTube) positioned bottom-right with adjustable sizing.

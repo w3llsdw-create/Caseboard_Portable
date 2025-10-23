@@ -1,0 +1,9 @@
+textual>=0.55.1
+rich>=13.7.0
+python-dateutil>=2.9.0.post0
+requests>=2.31.0
+yfinance>=0.2.44
+fastapi>=0.110.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.7.0
+filelock>=3.13.1

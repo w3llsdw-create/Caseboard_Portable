@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>McMath Woods • David W. Wells • Caseboard Command Center</title>
+
+  <!-- Brand typography: Argent CF (display) + Indivisible (text). Swap if licensed. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Spectral:wght@400;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ink: "#0b0f16",
+            ink2: "#0f1520",
+            slateA: "#94a3b8",
+            copper: "#C58A59",
+            copper2: "#E1A974",
+            emeraldA: "#34d399",
+          },
+          fontFamily: {
+            ui: ['Inter', 'ui-sans-serif', 'system-ui'],
+            brandSerif: ['Spectral', 'ui-serif', 'Georgia', 'serif'],
+          },
+          boxShadow: {
+            glass: '0 24px 48px -24px rgba(0,0,0,0.6)',
+          }
+        }
+      }
+    }
+  </script>
+
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    html, body { height: 100%; }
+    body {
+      background:
+        radial-gradient(1400px 700px at 20% -10%, rgba(197,138,89,0.12), transparent 60%),
+        radial-gradient(1200px 800px at 120% 20%, rgba(69,117,192,0.08), transparent 60%),
+        linear-gradient(180deg, #0b0f16 0%, #0f1520 100%);
+      font-feature-settings: "tnum" 1, "ss01" 1;
+    }
+    .noise::before{
+      content:""; position:fixed; inset:0; pointer-events:none; opacity:.05;
+      background-image:url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGMAAQAABQABZyQqWQAAAABJRU5ErkJggg==');
+      background-size: 8px 8px; mix-blend-mode: overlay;
+    }
+    .sweep{ position:relative; overflow:hidden; }
+    .sweep::after{
+      content:""; position:absolute; inset:-40%;
+      background: conic-gradient(from 120deg, transparent, rgba(255,255,255,0.05), transparent 30%);
+      animation: sweep 18s linear infinite;
+    }
+    @keyframes sweep { to { transform: rotate(360deg); } }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .no-scrollbar::-webkit-scrollbar { display:none; } .no-scrollbar{ scrollbar-width:none; }
+  </style>
+</head>
+
+<body class="font-ui text-slate-100 overflow-hidden">
+  <div class="noise"></div>
+
+  <header class="sweep relative z-20 border-b border-white/10 bg-ink/80 backdrop-blur">
+    <div class="mx-auto max-w-[1920px] px-6 py-4">
+      <div class="grid grid-cols-12 items-center gap-4">
+        <div class="col-span-12 xl:col-span-4 flex items-center gap-4">
+          <img src="/static/pngs/McMathWoods_M_Brandmark_Copper.png" alt="McMath Woods" class="h-8 w-auto">
+          <div>
+            <p class="text-xs uppercase tracking-[0.35em] text-slate-300">McMath Woods • Arkansas Trial Lawyers</p>
+            <h1 class="font-brandSerif text-xl leading-tight">David W. Wells • Caseboard Command Center</h1>
+          </div>
+        </div>
+        <div class="col-span-12 xl:col-span-8 flex items-center justify-end gap-3">
+          <span id="last-sync" class="text-sm text-slate-300">Snapshot loading…</span>
+          <div class="h-4 w-px bg-white/10"></div>
+          <button id="btn-refresh" class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.3em] hover:bg-white/10">Refresh</button>
+          <button id="btn-kiosk" class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.3em] hover:bg-white/10">Kiosk</button>
+          <button id="btn-pip" class="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.3em] hover:bg-white/10">PiP</button>
+        </div>
+      </div>
+    </div>
+    <div class="h-1 w-full bg-gradient-to-r from-copper via-copper2 to-emeraldA opacity-75"></div>
+  </header>
+
+  <main class="relative z-10 mx-auto max-w-[1920px] px-6 pt-4 pb-6">
+    <div class="grid h-[calc(100vh-108px)] grid-cols-12 gap-4">
+
+      <aside class="col-span-2 flex flex-col gap-4">
+        <section id="stat-chips" class="grid grid-cols-1 gap-3"></section>
+        <section class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 shadow-glass">
+          <header class="flex items-center justify-between px-4 py-3">
+            <h2 class="text-xs font-semibold uppercase tracking-[0.35em] text-slate-200">Practice Mix</h2>
+            <span id="practice-meta" class="text-[11px] uppercase tracking-[0.25em] text-slate-400">--</span>
+          </header>
+          <div id="practice-list" class="no-scrollbar flex-1 overflow-y-auto px-4 pb-4"></div>
+        </section>
+      </aside>
+
+      <section class="col-span-8 flex min-h-0 flex-col overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 shadow-glass">
+        <header class="flex items-center justify-between px-5 py-3">
+          <h2 class="text-xs font-semibold uppercase tracking-[0.35em] text-slate-200">Active Case Ledger</h2>
+          <div class="flex items-center gap-3">
+            <div class="hidden md:flex items-center gap-2 rounded-full bg-emeraldA/10 px-3 py-1 text-[10px] uppercase tracking-[0.25em] text-emeraldA ring-1 ring-emeraldA/30">
+              <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emeraldA"></span><span>Live</span>
+            </div>
+            <span id="case-count" class="text-[11px] uppercase tracking-[0.25em] text-slate-400">0 Cases</span>
+          </div>
+        </header>
+
+        <div class="min-h-0 flex-1">
+          <div id="cases-scroll" class="h-full overflow-auto no-scrollbar">
+            <table class="min-w-full border-separate border-spacing-0 text-sm">
+              <thead class="sticky top-0 z-30 bg-ink2/90 backdrop-blur">
+                <tr class="text-left text-xs uppercase tracking-[0.25em] text-slate-300">
+                  <th class="sticky left-0 z-40 w-28 bg-ink2/90 px-4 py-3">Case #</th>
+                  <th class="sticky left-28 z-30 min-w-[240px] bg-ink2/90 px-4 py-3">Name</th>
+                  <th class="px-4 py-3">Type</th>
+                  <th class="px-4 py-3">Stage</th>
+                  <th class="px-4 py-3">Attention</th>
+                  <th class="px-4 py-3">Status</th>
+                  <th class="px-4 py-3">Paralegal</th>
+                  <th class="min-w-[260px] px-4 py-3">Focus</th>
+                  <th class="px-4 py-3 text-right">Next Due</th>
+                  <th class="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody id="cases-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <aside class="col-span-2 flex min-h-0 flex-col gap-4">
+        <section class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 shadow-glass">
+          <header class="flex items-center justify-between px-4 py-3">
+            <h2 class="text-xs font-semibold uppercase tracking-[0.35em] text-slate-200">Deadline Radar</h2>
+            <span id="deadline-meta" class="text-[11px] uppercase tracking-[0.25em] text-slate-400">--</span>
+          </header>
+          <div id="deadlines-list" class="no-scrollbar flex-1 overflow-y-auto px-4 pb-4"></div>
+        </section>
+
+        <section class="hidden xl:block rounded-2xl bg-white/5 ring-1 ring-white/10 shadow-glass p-4">
+          <img src="/static/pngs/McMathWoods_Seal_Copper.png" alt="" class="opacity-70">
+        </section>
+      </aside>
+
+    </div>
+  </main>
+
+  <div id="drawer" class="fixed inset-y-0 right-0 z-50 hidden w-[480px] max-w-[92vw] translate-x-0 bg-ink2/95 backdrop-blur ring-1 ring-white/10 shadow-2xl">
+    <div class="flex h-full flex-col">
+      <header class="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
+        <div>
+          <p id="drawer-number" class="text-xs uppercase tracking-[0.3em] text-slate-400">—</p>
+          <h3 id="drawer-name" class="font-brandSerif text-xl leading-snug">—</h3>
+        </div>
+        <button id="drawer-close" class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs uppercase tracking-[0.3em] hover:bg-white/10">Close</button>
+      </header>
+
+      <div class="no-scrollbar flex-1 overflow-y-auto px-5 py-4">
+        <dl class="grid grid-cols-3 gap-3 text-sm">
+          <dt class="col-span-1 text-slate-400">Type</dt><dd id="drawer-type" class="col-span-2">—</dd>
+          <dt class="col-span-1 text-slate-400">Stage</dt><dd id="drawer-stage" class="col-span-2">—</dd>
+          <dt class="col-span-1 text-slate-400">Status</dt><dd id="drawer-status" class="col-span-2">—</dd>
+          <dt class="col-span-1 text-slate-400">Paralegal</dt><dd id="drawer-paralegal" class="col-span-2">—</dd>
+          <dt class="col-span-1 text-slate-400">Focus</dt><dd id="drawer-focus" class="col-span-2">—</dd>
+          <dt class="col-span-1 text-slate-400">Next Due</dt><dd id="drawer-nextdue" class="col-span-2 tabular">—</dd>
+        </dl>
+
+        <h4 class="mt-6 mb-2 text-xs font-semibold uppercase tracking-[0.35em] text-slate-200">Deadlines</h4>
+        <ul id="drawer-deadlines" class="space-y-2"></ul>
+
+        <h4 class="mt-6 mb-2 text-xs font-semibold uppercase tracking-[0.35em] text-slate-200">Quick actions</h4>
+        <div class="flex flex-wrap items-center gap-2">
+          <button id="drawer-copy" class="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs uppercase tracking-[0.25em] hover:bg-white/10">Copy Case ID</button>
+          <a id="drawer-mail" href="#" class="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs uppercase tracking-[0.25em] hover:bg-white/10">Mail Paralegal</a>
+          <button id="drawer-download" class="rounded-md border border-white/10 bg-white/5 px-3 py-2 text-xs uppercase tracking-[0.25em] hover:bg-white/10">Download JSON</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="pip" class="fixed bottom-4 right-4 z-[60]">
+    <div class="mb-2 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-slate-200 ring-1 ring-white/10">
+      <span class="text-slate-300">PiP</span>
+      <button data-size="sm" class="rounded-full bg-white/10 px-2 py-1 hover:bg-white/20">Sm</button>
+      <button data-size="md" class="rounded-full bg-white/10 px-2 py-1 hover:bg-white/20">Md</button>
+      <button data-size="lg" class="rounded-full bg-white/10 px-2 py-1 hover:bg-white/20">Lg</button>
+      <button id="pip-hide" class="rounded-full bg-white/10 px-2 py-1 hover:bg-white/20">Hide</button>
+    </div>
+    <div id="pip-frame" class="cursor-move overflow-hidden rounded-xl bg-black ring-1 ring-white/10 shadow-xl">
+      <iframe
+        src="https://www.youtube.com/embed/live_stream?channel=UC8p1vwvWtl6T73JiExfWs1g"
+        title="CBS News 24/7"
+        allow="autoplay; encrypted-media"
+        allowfullscreen
+        class="h-[214px] w-[380px]"
+      ></iframe>
+    </div>
+  </div>
+
+  <script type="module" src="/static/main.js"></script>
+</body>
+</html>
