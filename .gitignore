@@ -14,8 +14,19 @@ build/
 # Python
 .venv/
 venv/
+env/
+ENV/
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
 
 # .NET / C/C++
 bin/
@@ -28,3 +39,14 @@ obj/
 *.log
 .env*
 coverage/
+
+# Data backups (keep the actual backup files)
+data/*.tmp
+data/*.backup_*
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
