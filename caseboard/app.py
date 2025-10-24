@@ -422,13 +422,31 @@ class CaseboardApp(App):
     # Editing handlers
     # ------------------------------------------------------------------
     def on_input_blurred(self, event: Input.Blurred) -> None:
-        self._apply_change(event.input.id, event.value)
+        try:
+            self._apply_change(event.input.id, event.value)
+        except Exception as exc:
+            # Prevent crashes from unexpected errors during field updates
+            if self.validation_label:
+                self.validation_label.update(f"Error: {exc}")
+            self.bell()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        self._apply_change(event.input.id, event.value)
+        try:
+            self._apply_change(event.input.id, event.value)
+        except Exception as exc:
+            # Prevent crashes from unexpected errors during field updates
+            if self.validation_label:
+                self.validation_label.update(f"Error: {exc}")
+            self.bell()
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        self._apply_change(event.select.id, event.value)
+        try:
+            self._apply_change(event.select.id, event.value)
+        except Exception as exc:
+            # Prevent crashes from unexpected errors during field updates
+            if self.validation_label:
+                self.validation_label.update(f"Error: {exc}")
+            self.bell()
 
     def _apply_change(self, widget_id: str | None, value: Optional[str]) -> None:
         if not widget_id or not self.filtered_indices:
@@ -709,13 +727,6 @@ class CaseboardApp(App):
     # ------------------------------------------------------------------
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         self._select_row(event.cursor_row, update_cursor=False)
-
-    def on_key(self, event: Key) -> None:
-        if event.key == "tab":
-            widget = self.inputs.get("current_task")
-            if isinstance(widget, Input):
-                widget.focus()
-                event.stop()
 
     # ------------------------------------------------------------------
     # Status line
