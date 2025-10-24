@@ -31,6 +31,7 @@ This will start your caseboard dashboard immediately.
 
 - **`RUN_DISPLAY_BOARD.bat`** launches the large-format Textual display board for your office TV.
 - **`RUN_WEB_DASHBOARD.bat`** starts the FastAPI-powered web dashboard on http://127.0.0.1:8000 for any browser or kiosk display.
+- **`RUN_TV_DISPLAY.bat`** launches the passive TV display in Chrome kiosk mode - perfect for a 55" office monitor with autonomous updates, elegant animations, and zero interaction required.
 
 ### FEATURES
 
@@ -39,6 +40,16 @@ This will start your caseboard dashboard immediately.
 - Color-coded priority deadlines
 - NYSE-style stock ticker
 - Blue terminal theme
+
+✅ **TV Display Dashboard** (NEW!)
+- Passive, non-interactive display for office TV
+- Autonomous 60-second updates from live data
+- Elegant copper/slate/white McMath Woods branding
+- Subtle animations: light sweep, overdue pulse, deadline shimmer
+- Data freshness indicator (green → amber → red)
+- Perfect readability from 10 ft on 55" screen
+- Launch with `RUN_TV_DISPLAY.bat` for fullscreen kiosk mode
+- Access at http://127.0.0.1:8000/tv
 
 ✅ **Focus History Tracking** (NEW!)
 - Automatically logs all "Current Focus" updates for each case
@@ -81,6 +92,45 @@ For detailed development information, see [DEVELOPMENT.md](DEVELOPMENT.md).
 ### WEB COMMAND DECK BLUEPRINT
 
 **Result**: Bloomberg-meets-Apple command deck for a 55″ TV. Keeps the `/cases` API, adds a right-side case drawer, refined copper/ink visual system, ambient lighting, and a draggable PiP for CBS News. Fonts map to the brand serif/sans pairing (Display: Argent CF, Text: Indivisible per brand guide pp.17–18; swap-in hooks noted). Poll cadence and PiP behavior match the current snapshot.
+
+### TV DISPLAY – PASSIVE MONITORING DASHBOARD
+
+**Purpose**: A functional piece of art. Professional, refined, understated motion. Designed to run autonomously on a 55" office TV with perfect readability from 10 feet.
+
+**Key Features**:
+- **Non-interactive**: No mouse, no clicking — just continuous live updates
+- **Autonomous operation**: Fetches from `/cases` every 60 seconds with overlap guards
+- **Data freshness indicator**: Live (green) → Aging (amber) → Stale (red) based on last successful fetch
+- **Elegant animations**: 18-second light sweep, 8-second overdue row pulse, 3-second due-today shimmer
+- **Brand-aligned design**: Copper, slate, and white color palette matching McMath Woods identity
+- **Urgency visualization**: 2px left-edge accent bars on each row:
+  - Rose = Overdue (with pulse)
+  - Amber = Due today
+  - Orange = Due within 3 days
+  - Copper = Needs attention
+  - Slate = Normal
+- **Sticky case number column**: Always visible during horizontal scrolling
+- **Deadline radar**: Right-side panel showing top 10 upcoming deadlines
+- **Auto-recovery**: Reloads page if no data for > 5 minutes
+- **Reduced motion support**: All animations respect `prefers-reduced-motion` preference
+
+**Launch**:
+```bash
+# Windows - Starts web server and launches Chrome in kiosk mode
+RUN_TV_DISPLAY.bat
+
+# Unix/Linux/macOS
+./run_tv_display.sh
+
+# Or manually visit
+http://127.0.0.1:8000/tv
+```
+
+**Technical Details**:
+- Self-contained HTML/CSS/JS (no external CDN dependencies)
+- Uses system fonts with tabular numerals for stable layout
+- Ambient noise texture overlay (2% opacity) for tactile feel
+- All styling embedded for offline reliability
 
 #### 1) Design rationale
 
@@ -133,7 +183,9 @@ Caseboard_Portable/
 ├── RUN_CASEBOARD.bat          # Daily launcher
 ├── RUN_DISPLAY_BOARD.bat      # TV-optimized ticker board launcher
 ├── RUN_WEB_DASHBOARD.bat      # Web dashboard launcher (FastAPI + Tailwind)
+├── RUN_TV_DISPLAY.bat         # TV display kiosk mode launcher (NEW!)
 ├── run_web.py                 # Python entry point for the web dashboard
+├── run_tv_display.sh          # Unix TV display launcher
 ├── run.py                     # Main application launcher
 ├── requirements.txt           # Python dependencies
 ├── caseboard/                 # Application code
@@ -145,7 +197,10 @@ Caseboard_Portable/
 ├── web/
 │   ├── main.py                # FastAPI app serving the web dashboard
 │   └── static/
-│       └── index.html         # Tailwind-powered client UI
+│       ├── index.html         # Tailwind-powered client UI
+│       ├── main.js            # Interactive dashboard JavaScript
+│       ├── tv.html            # TV display page (NEW!)
+│       └── tv.js              # TV display autonomous updates (NEW!)
 └── data/
    └── cases.json             # Your case data
 ```

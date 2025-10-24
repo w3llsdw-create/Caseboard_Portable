@@ -28,6 +28,12 @@ async def root() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/tv", response_class=FileResponse)
+async def tv_display() -> FileResponse:
+    """Serve the TV display dashboard."""
+    return FileResponse(STATIC_DIR / "tv.html")
+
+
 @app.get("/favicon.ico", response_class=FileResponse)
 async def favicon() -> FileResponse:
     """Serve the favicon."""
