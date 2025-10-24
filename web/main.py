@@ -28,6 +28,12 @@ async def root() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/favicon.ico", response_class=FileResponse)
+async def favicon() -> FileResponse:
+    """Serve the favicon."""
+    return FileResponse(STATIC_DIR / "favicon.ico")
+
+
 @app.get("/cases")
 async def get_cases() -> dict[str, object]:
     """Return the raw case data along with a generated timestamp."""
