@@ -374,10 +374,10 @@ class CaseboardApp(App):
             self.inputs["case_name"].value = case.case_name  # type: ignore[assignment]
         if isinstance(self.inputs["case_type"], Select):
             # Only update options if they might have changed
-            current_options = self.inputs["case_type"].options  # type: ignore[assignment]
+            current_options = self.inputs["case_type"]._options  # type: ignore[attr-defined]
             if not current_options or case.case_type not in [opt[1] for opt in current_options]:
                 options = ensure_case_type_options([c.case_type for c in self.cases])
-                self.inputs["case_type"].options = options  # type: ignore[assignment]
+                self.inputs["case_type"].set_options(options)
             self.inputs["case_type"].value = case.case_type  # type: ignore[assignment]
         if isinstance(self.inputs["stage"], Input):
             self.inputs["stage"].value = case.stage  # type: ignore[assignment]
