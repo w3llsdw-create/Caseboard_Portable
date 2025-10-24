@@ -52,3 +52,4 @@ data/focus_logs/
 *.swo
 *~
 .DS_Store
+*.backup
