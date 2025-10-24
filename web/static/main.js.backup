@@ -691,137 +691,472 @@ function renderDrawerDeadlines(caseItem) {
         item.textContent = `${due} • ${deadline.description || "No description"}${resolved}`;
         fragment.appendChild(item);
     });
-    elements.drawerDeadlines.replaceChildren(fragment);
+    alert: "bg-amber-500/20 text-amber-300",
+    wait: "bg-slate-500/20 text-slate-300",
+    neutral: "bg-white/10 text-slate-200",
+};
+
+const ATTENTION_LABELS = {
+    waiting: "Waiting",
+    needs_attention: "Needs Attention",
+};
+
+const STATUS_DETAILS = {
+    open: { label: "Active", tone: "active" },
+    filed: { label: "Filed", tone: "active" },
+    "pre-filing": { label: "Pre-Filing", tone: "wait" },
+    closed: { label: "Closed", tone: "neutral" },
+};
+
+const COLUMN_DEFS = [
+    {
+        id: "case_number",
+        createCell: (item) => {
+            const td = document.createElement("td");
+            td.className = "sticky left-0 z-30 w-32 px-4 py-2 md:px-5 font-semibold text-slate-100 tabular-nums bg-midnight/80 backdrop-blur";
+            td.textContent = item.case_number || "—";
+            return td;
+        /* globals localStorage navigator */
+
+                currentCases = payload.cases || [];
+                const stats = summarize(currentCases);
+                const deadlines = rankDeadlines(currentCases);
+
+                renderStats(stats);
+                renderPractice(stats);
+                renderDeadlines(deadlines);
+                renderCases(currentCases);
+
+                if (payload.meta?.saved_at) {
+                    const snap = new Date(payload.meta.saved_at);
+                    lastSync.textContent = `Snapshot ${snap.toLocaleString()}`;
+                } else {
+                    lastSync.textContent = `Updated ${timestamp.toLocaleTimeString()}`;
+                }
+
+                const remembered = localStorage.getItem(STORAGE_KEYS.LAST_VIEW);
+                if (remembered && currentCases.some((c) => c.case_number === remembered)) {
+                    openDrawer(remembered);
+                }
+            } catch (error) {
+                console.error("Dashboard load failed", error);
+                lastSync.textContent = `Sync failed ${timestamp.toLocaleTimeString()}`;
+            } finally {
+                if (manual) btnRefresh.disabled = false;
+            }
+        }
+
+        function scheduleRefresh() {
+            if (refreshTimer) clearInterval(refreshTimer);
+            refreshTimer = setInterval(() => loadDashboard(false), REFRESH_INTERVAL);
+        }
+
+        document.addEventListener("click", (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            if (target.dataset.action === "open") {
+                const row = target.closest("tr");
+                if (!row) return;
+                openDrawer(row.dataset.caseId || "");
+            }
+        });
+
+        drawerClose.addEventListener("click", () => {
+            closeDrawer();
+            localStorage.removeItem(STORAGE_KEYS.LAST_VIEW);
+        });
+
+        btnRefresh.addEventListener("click", () => loadDashboard(true));
+        btnKiosk.addEventListener("click", () => setKioskMode(!kioskMode));
+        btnPip.addEventListener("click", () => togglePiP());
+        pipHide.addEventListener("click", () => togglePiP(false));
+        pipSizeButtons.forEach((button) => button.addEventListener("click", () => persistPiP(button.dataset.size)));
+
+        let dragStart = null;
+        pipFrame.addEventListener("pointerdown", (event) => {
+            dragStart = {
+                x: event.clientX,
+                y: event.clientY,
+                rect: pip.getBoundingClientRect(),
+            };
+            pipFrame.setPointerCapture(event.pointerId);
+        });
+
+        pipFrame.addEventListener("pointermove", (event) => {
+            if (!dragStart) return;
+            const dx = event.clientX - dragStart.x;
+            const dy = event.clientY - dragStart.y;
+            pip.style.right = "auto";
+            pip.style.bottom = "auto";
+            pip.style.left = `${dragStart.rect.left + dx}px`;
+            pip.style.top = `${dragStart.rect.top + dy}px`;
+        });
+
+        pipFrame.addEventListener("pointerup", () => {
+            dragStart = null;
+        });
+
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape" && !drawer.classList.contains("hidden")) {
+                closeDrawer();
+            }
+        });
+
+        restorePiP();
+        loadDashboard(false);
+        scheduleRefresh();
+        container.appendChild(textWrap);
+        elements.chips.appendChild(container);
+    });
 }
 
-function closeDrawer() {
-    if (!elements.drawer) return;
-    elements.drawer.classList.add("hidden");
-    state.lastCaseKey = null;
-    try {
-        localStorage.removeItem(STORAGE_KEYS.LAST_CASE);
-    } catch (error) {
-        console.warn("Unable to remove last case", error);
+function renderPracticeMix(stats) {
+    elements.practice.replaceChildren();
+    const entries = Array.from(stats.byType.entries()).sort((a, b) => b[1] - a[1]);
+    if (elements.practiceMeta) {
+        elements.practiceMeta.textContent = `${entries.length} categories`;
+    }
+
+    const total = Math.max(stats.total, 1);
+
+    entries.forEach(([label, count]) => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "flex flex-col gap-1 py-2";
+
+        const header = document.createElement("div");
+        header.className = "flex items-center justify-between text-sm";
+        const name = document.createElement("span");
+        name.className = "font-medium text-slate-100";
+        name.textContent = label;
+        const meta = document.createElement("span");
+        meta.className = "text-slate-300 tabular-nums";
+        const pct = Math.round((count / total) * 100);
+        meta.textContent = `${count} • ${pct}%`;
+
+        header.appendChild(name);
+        header.appendChild(meta);
+
+        const bar = document.createElement("div");
+        bar.className = "h-1.5 w-full rounded-full bg-white/10";
+        const fill = document.createElement("div");
+        fill.className = "h-full rounded-full bg-gradient-to-r from-indigo-400 to-sky-400";
+        fill.style.width = `${Math.max(6, pct)}%`;
+        bar.appendChild(fill);
+
+        wrapper.appendChild(header);
+        wrapper.appendChild(bar);
+        elements.practice.appendChild(wrapper);
+    });
+
+    if (entries.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "py-4 text-sm text-slate-300";
+        empty.textContent = "No practice mix recorded.";
+        elements.practice.appendChild(empty);
     }
 }
 
-function copyCaseId() {
-    const match = findCase(state.lastCaseKey);
-    if (!match) return;
-    navigator.clipboard?.writeText(match.id || match.case_number).catch(console.error);
+function computeDeadlines(cases) {
+    const today = new Date();
+    const items = [];
+
+    cases.forEach((caseItem) => {
+        const relevant = (caseItem.deadlines || []).filter(
+            (deadline) => deadline && !deadline.resolved && deadline.due_date,
+        );
+
+        relevant.forEach((deadline) => {
+            const due = new Date(`${deadline.due_date}T00:00:00`);
+            if (Number.isNaN(due.getTime())) return;
+            items.push({ caseItem, deadline, due });
+        });
+    });
+
+    items.sort((a, b) => a.due - b.due);
+    const upcoming = items.slice(0, 6).map((entry) => {
+        const diffDays = Math.round((entry.due - today) / 86_400_000);
+        let tone = "border-white/10 text-slate-200";
+        if (diffDays < 0) tone = "border-rose-400/40 text-rose-200";
+        else if (diffDays === 0) tone = "border-amber-400/40 text-amber-200";
+        else if (diffDays <= 3) tone = "border-orange-400/40 text-orange-200";
+
+        return {
+            ...entry,
+            diffDays,
+            dueLabel: formatDate(entry.deadline.due_date),
+            badge: diffDays < 0 ? `${Math.abs(diffDays)}d late` : diffDays === 0 ? "Due today" : `In ${diffDays}d`,
+            tone,
+        };
+    });
+
+    return { upcoming, total: items.length };
 }
 
-function downloadCaseJson() {
-    const match = findCase(state.lastCaseKey);
-    if (!match) return;
-    const blob = new Blob([JSON.stringify(match, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${match.case_number || "case"}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+function renderDeadlines(deadlines) {
+    elements.deadlines.replaceChildren();
+
+    if (!deadlines.upcoming.length) {
+        const empty = document.createElement("p");
+        empty.className = "py-6 text-sm text-slate-300";
+        empty.textContent = "No upcoming deadlines logged.";
+        elements.deadlines.appendChild(empty);
+        if (elements.deadlineMeta) {
+            elements.deadlineMeta.textContent = "0 upcoming";
+        }
+        return;
+    }
+
+    if (elements.deadlineMeta) {
+        elements.deadlineMeta.textContent = `${deadlines.upcoming.length} of ${deadlines.total}`;
+    }
+
+    deadlines.upcoming.forEach((entry) => {
+        const card = document.createElement("article");
+        card.className = `border-l-4 ${entry.tone} px-3 py-3 md:px-4 md:py-4`;
+
+        const header = document.createElement("div");
+        header.className = "flex items-start justify-between gap-3";
+
+        const left = document.createElement("div");
+        const caseName = document.createElement("p");
+        caseName.className = "font-semibold text-slate-100";
+        caseName.textContent = entry.caseItem.case_name || entry.caseItem.case_number || "—";
+        const desc = document.createElement("p");
+        desc.className = "text-xs text-slate-300";
+        desc.textContent = entry.deadline.description || "—";
+
+        left.appendChild(caseName);
+        left.appendChild(desc);
+
+        const right = document.createElement("div");
+        right.className = "text-right";
+        const badge = document.createElement("p");
+        badge.className = "text-xs uppercase tracking-[0.25em] text-slate-200";
+        badge.textContent = entry.badge;
+        const dueDate = document.createElement("p");
+        dueDate.className = "text-xs text-slate-400 tabular-nums";
+        dueDate.textContent = entry.dueLabel;
+
+        right.appendChild(badge);
+        right.appendChild(dueDate);
+
+        header.appendChild(left);
+        header.appendChild(right);
+        card.appendChild(header);
+        elements.deadlines.appendChild(card);
+    });
 }
 
-function toggleKioskMode() {
-    state.kiosk = !state.kiosk;
-    applyKioskMode(state.kiosk);
-    try {
-        localStorage.setItem(STORAGE_KEYS.KIOSK, state.kiosk ? "1" : "0");
-    } catch (error) {
-        console.warn("Unable to save kiosk mode", error);
+function renderCases(cases) {
+    const tbody = elements.casesBody;
+    const existing = new Map();
+    Array.from(tbody.children).forEach((row) => {
+        if (row instanceof HTMLTableRowElement) {
+            existing.set(row.dataset.caseId || "", row);
+        }
+    });
+
+    const fragment = document.createDocumentFragment();
+
+    cases.forEach((item, index) => {
+        const key = item.id || item.case_number || `case-${index}`;
+        const row = existing.get(key);
+        if (row) {
+            updateRow(row, item, index);
+            existing.delete(key);
+            fragment.appendChild(row);
+        } else {
+            fragment.appendChild(buildRow(item, index, key));
+        }
+    });
+
+    existing.forEach((row) => row.remove());
+    tbody.appendChild(fragment);
+    if (elements.caseCount) {
+        elements.caseCount.textContent = `${cases.length} Cases`;
     }
 }
 
-function applyKioskMode(enabled) {
-    if (enabled) {
-        document.documentElement.requestFullscreen?.();
-    } else if (document.fullscreenElement) {
-        document.exitFullscreen?.();
-    }
+function buildRow(item, index, key) {
+    const row = document.createElement("tr");
+    row.dataset.caseId = key;
+    applyRowStyling(row, index);
+
+    COLUMN_DEFS.forEach((column) => {
+        row.appendChild(column.createCell(item));
+    });
+
+    row.classList.add("transition-colors", "hover:ring-1", "hover:ring-white/10");
+    return row;
 }
 
-function togglePiP(show) {
-    const newVisible = show !== undefined ? show : !state.pipVisible;
-    state.pipVisible = newVisible;
-    applyPipVisibility(newVisible);
-    savePipPreferences();
+function updateRow(row, item, index) {
+    row.dataset.caseId = item.id || row.dataset.caseId;
+    applyRowStyling(row, index);
+
+    COLUMN_DEFS.forEach((column, columnIndex) => {
+        const cell = row.children[columnIndex];
+        if (cell) column.updateCell(cell, item);
+    });
 }
 
-function applyPipVisibility(visible) {
-    if (!elements.pip) return;
-    if (visible) {
-        elements.pip.classList.remove("hidden");
+function applyRowStyling(row, index) {
+    row.className = "border-b border-white/5 text-sm leading-5 transition-colors hover:bg-white/10 hover:ring-1 hover:ring-white/10";
+    row.classList.remove("bg-white/5", "bg-white/10");
+    row.classList.add(index % 2 === 0 ? "bg-white/5" : "bg-white/10");
+}
+
+function createAttentionBadge(attention) {
+    const badge = document.createElement("span");
+    badge.className = "inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs uppercase tracking-[0.25em]";
+
+    if (attention === "needs_attention") {
+        badge.className += ` ${BADGE_TONES.alert}`;
+        badge.textContent = ATTENTION_LABELS.needs_attention;
     } else {
-        elements.pip.classList.add("hidden");
+        badge.className += ` ${BADGE_TONES.wait}`;
+        badge.textContent = ATTENTION_LABELS.waiting;
     }
-    if (elements.btnPiP) {
-        elements.btnPiP.setAttribute("aria-pressed", String(visible));
+
+    return badge;
+}
+
+function createStatusBadge(status) {
+    const badge = document.createElement("span");
+    badge.className = "inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs uppercase tracking-[0.25em]";
+
+    const details = STATUS_DETAILS[status] || { label: status || "—", tone: "neutral" };
+    badge.className += ` ${BADGE_TONES[details.tone] || BADGE_TONES.neutral}`;
+    badge.textContent = details.label || "—";
+
+    return badge;
+}
+
+function formatNextDue(caseItem) {
+    const deadlines = (caseItem.deadlines || []).filter((deadline) => deadline && !deadline.resolved && deadline.due_date);
+    if (!deadlines.length) return "—";
+
+    const sorted = deadlines
+        .map((deadline) => ({ ...deadline, due: new Date(`${deadline.due_date}T00:00:00`) }))
+        .filter((deadline) => !Number.isNaN(deadline.due.getTime()))
+        .sort((a, b) => a.due - b.due);
+
+    if (!sorted.length) return "—";
+
+    const next = sorted[0];
+    const today = new Date();
+    const diffDays = Math.round((next.due - today) / 86_400_000);
+    const label = formatDate(next.due_date);
+
+    if (diffDays < 0) return `${label} (${Math.abs(diffDays)}d late)`;
+    if (diffDays === 0) return `${label} (today)`;
+    return `${label} (${diffDays}d)`;
+}
+
+function formatDate(value) {
+    if (!value) return "—";
+    const parsed = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return "—";
+    return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function updateSnapshotTime(savedAt, generatedAt) {
+    const source = savedAt || generatedAt;
+    if (!source) {
+        elements.lastSync.textContent = "Snapshot unavailable";
+        return;
+    }
+    const parsed = new Date(source);
+    if (Number.isNaN(parsed.getTime())) {
+        elements.lastSync.textContent = "Snapshot unavailable";
+        return;
+    }
+    elements.lastSync.textContent = `Snapshot: ${parsed.toLocaleString()}`;
+}
+
+function totalIcon() {
+    return '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path d="M4 4h12v2H4V4zm0 5h12v2H4V9zm0 5h12v2H4v-2z" /></svg>';
+}
+
+function pulseIcon() {
+    return '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path d="M3 11h3l1.5-5 3 10 2-6H17" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+
+function alertIcon() {
+    return '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path d="M9.401 3.173a1 1 0 011.198 0l6.4 4.8A1 1 0 0116.4 10H3.6a1 1 0 01-.599-2l6.4-4.8zM10 11a1 1 0 100 2 1 1 0 000-2z" /></svg>';
+}
+
+function archiveIcon() {
+    return '<svg viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4"><path d="M4 4h12a1 1 0 011 1v2H3V5a1 1 0 011-1zm-1 5h14v6a1 1 0 01-1 1H4a1 1 0 01-1-1V9zm4 2v2h6v-2H7z" /></svg>';
+}
+
+function restorePipPreferences() {
+    try {
+        const stored = localStorage.getItem(PIP_STORAGE_KEY);
+        if (!stored) return;
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === "object") {
+            if (parsed.size && ["sm", "md", "lg"].includes(parsed.size)) {
+                state.pipSize = parsed.size;
+            }
+            if (typeof parsed.visible === "boolean") {
+                state.pipVisible = parsed.visible;
+            }
+        }
+    } catch (error) {
+        console.warn("Failed to restore PiP settings", error);
     }
 }
 
-function setPipSize(size) {
-    if (!Object.hasOwn(PIP_SIZES, size)) return;
-    state.pipSize = size;
-    applyPipSize(size);
-    savePipPreferences();
+function persistPipPreferences() {
+    const payload = {
+        size: state.pipSize,
+        visible: state.pipVisible,
+    };
+    try {
+        localStorage.setItem(PIP_STORAGE_KEY, JSON.stringify(payload));
+    } catch (error) {
+        console.warn("Unable to persist PiP settings", error);
+    }
 }
 
 function applyPipSize(size) {
     const iframe = elements.pipFrame?.querySelector("iframe");
     if (!iframe) return;
-    Object.values(PIP_SIZES).flat().forEach((cls) => iframe.classList.remove(cls));
-    (PIP_SIZES[size] || PIP_SIZES.md).forEach((cls) => iframe.classList.add(cls));
+    const sizes = {
+        sm: ["w-[300px]", "h-[169px]"],
+        md: ["w-[380px]", "h-[214px]"],
+        lg: ["w-[480px]", "h-[270px]"],
+    };
+    Object.values(sizes).flat().forEach((cls) => iframe.classList.remove(cls));
+    (sizes[size] || sizes.md).forEach((cls) => iframe.classList.add(cls));
 }
 
-function savePipPreferences() {
-    try {
-        localStorage.setItem(STORAGE_KEYS.PIP, JSON.stringify({ size: state.pipSize, visible: state.pipVisible }));
-    } catch (error) {
-        console.warn("Unable to save PiP preferences", error);
+function setPipSize(size) {
+    state.pipSize = size;
+    applyPipSize(size);
+    persistPipPreferences();
+}
+
+function applyPipVisibility(isVisible) {
+    if (!elements.pipFrame) return;
+    if (isVisible) {
+        elements.pipFrame.classList.remove("hidden");
+        if (elements.pipToggle) elements.pipToggle.textContent = "Hide";
+    } else {
+        elements.pipFrame.classList.add("hidden");
+        if (elements.pipToggle) elements.pipToggle.textContent = "Show";
+    }
+    if (elements.pipToggle) {
+        elements.pipToggle.setAttribute("aria-pressed", String(!isVisible));
     }
 }
 
-function startDrag(event) {
-    if (!elements.pip) return;
-    state.dragStart = {
-        x: event.clientX,
-        y: event.clientY,
-        rect: elements.pip.getBoundingClientRect(),
-    };
-    elements.pipFrame?.setPointerCapture(event.pointerId);
+function togglePipVisibility() {
+    state.pipVisible = !state.pipVisible;
+    applyPipVisibility(state.pipVisible);
+    persistPipPreferences();
 }
 
-function dragPiP(event) {
-    if (!state.dragStart || !elements.pip) return;
-    const dx = event.clientX - state.dragStart.x;
-    const dy = event.clientY - state.dragStart.y;
-    elements.pip.style.right = "auto";
-    elements.pip.style.bottom = "auto";
-    elements.pip.style.left = `${state.dragStart.rect.left + dx}px`;
-    elements.pip.style.top = `${state.dragStart.rect.top + dy}px`;
-}
-
-function endDrag() {
-    state.dragStart = null;
-}
-
-function caseKey(caseItem, index) {
-    return `${caseItem.case_number || index}-${caseItem.id || index}`;
-}
-
-function iconLedger() {
-    return '<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>';
-}
-
-function iconPulse() {
-    return '<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>';
-}
-
-function iconAlert() {
-    return '<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>';
-}
-
-function iconArchive() {
-    return '<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>';
-}
+loadDashboard(false);
+setInterval(() => loadDashboard(false), REFRESH_INTERVAL);
