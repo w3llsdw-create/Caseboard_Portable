@@ -23,14 +23,14 @@ fi
 echo "Python found. Setting up virtual environment..."
 
 # Create virtual environment if it doesn't exist
-if [ ! -d "venv" ]; then
+if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
-    $PYTHON_CMD -m venv venv
+    $PYTHON_CMD -m venv .venv
 fi
 
 # Activate virtual environment
 echo "Activating virtual environment..."
-source venv/bin/activate
+source .venv/bin/activate
 
 # Upgrade pip
 echo "Upgrading pip..."
@@ -44,6 +44,10 @@ if [ $? -ne 0 ]; then
     echo "ERROR: Failed to install dependencies"
     exit 1
 fi
+
+# Setup web assets
+echo "Setting up web assets..."
+python setup_web_assets.py > /dev/null 2>&1
 
 echo
 echo "===================================="

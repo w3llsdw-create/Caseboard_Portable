@@ -41,6 +41,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo Setting up web assets...
+python setup_web_assets.py >nul 2>&1
+
 echo.
 echo ✓ Setup complete!
 echo.

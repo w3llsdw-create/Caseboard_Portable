@@ -1,7 +1,8 @@
 @echo off
-echo ====================================
-echo CASEBOARD AUTO SETUP AND RUN
-echo ====================================
+setlocal
+echo ========================================
+echo   CASEBOARD SETUP - McMATH WOODS P.A.
+echo ========================================
 echo.
 
 REM Change to the script directory
@@ -9,52 +10,54 @@ cd /d "%~dp0"
 
 REM Check if Python is installed
 python --version >nul 2>&1
-if %errorlevel% neq 0 (
-    echo ERROR: Python is not installed or not in PATH
-    echo Please install Python from https://python.org
+if errorlevel 1 (
+    echo [!] Python 3.8+ is required but was not found in PATH.
+    echo     Install it from https://www.python.org/ then rerun this script.
     pause
     exit /b 1
 )
 
-echo Python found. Setting up virtual environment...
-
-REM Create virtual environment if it doesn't exist
-if not exist "venv" (
-    echo Creating virtual environment...
-    python -m venv venv
+if exist ".venv" (
+    echo ✓ Reusing existing .venv
+) else (
+    echo Creating fresh virtual environment...
+    python -m venv .venv
+    if errorlevel 1 (
+        echo [!] Could not create .venv. Check permissions and try again.
+        pause
+        exit /b 1
+    )
 )
 
-REM Activate virtual environment
-echo Activating virtual environment...
-call venv\Scripts\activate.bat
-
-REM Upgrade pip
-echo Upgrading pip...
-python -m pip install --upgrade pip
-
-REM Install requirements
-echo Installing dependencies...
-pip install -r requirements.txt
-
-REM Check if installation was successful
-if %errorlevel% neq 0 (
-    echo ERROR: Failed to install dependencies
+call .venv\Scripts\activate.bat >nul 2>&1
+if errorlevel 1 (
+    echo [!] Failed to activate .venv. Delete the folder and retry.
     pause
     exit /b 1
 )
 
-echo.
-echo ====================================
-echo SETUP COMPLETE - LAUNCHING CASEBOARD
-echo ====================================
-echo.
+echo Installing/updating requirements...
+"%VIRTUAL_ENV%\Scripts\python.exe" -m pip install --upgrade pip >nul 2>&1
+"%VIRTUAL_ENV%\Scripts\python.exe" -m pip install -r requirements.txt
+if errorlevel 1 (
+    echo [!] Dependency installation failed. Review the messages above.
+    pause
+    exit /b 1
+)
 
-REM Run the application
+echo Setting up web assets...
+python setup_web_assets.py >nul 2>&1
+
+echo.
+echo ✓ Setup complete!
+echo.
+echo Launching Caseboard...
 python run.py
 
-REM Keep window open if there's an error
-if %errorlevel% neq 0 (
+if errorlevel 1 (
     echo.
-    echo Application exited with error code %errorlevel%
-    pause
+    echo [!] Caseboard exited with an error. Review the output above.
 )
+
+pause
+endlocal
