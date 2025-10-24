@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "version": 1,
-  "saved_at": "2025-10-23T22:59:47.198415Z",
+  "saved_at": "2025-10-24T00:51:07.337906Z",
   "cases": [
     {
       "id": "38fbc6bf-58ff-4db6-8ace-19530cfeda58",
@@ -12,7 +12,7 @@
       "attention": "waiting",
       "status": "filed",
       "paralegal": "Andrew",
-      "current_task": "Waiting on signed order to serve subpoena",
+      "current_task": "Scheduling depositions with expert witnesses",
       "county": "Pulaski",
       "division": "12th",
       "judge": "Connors",
@@ -82,7 +82,7 @@
       "sol_date": null
     },
     {
-      "id": "97638919-315e-4009-921a-b8cb6d7798a0",
+      "id": "9bf1b568-d922-4aad-a112-8c7a352ccd32",
       "case_number": "Pre-filing",
       "case_name": "Tronca v. Tronca",
       "case_type": "Divorce",
@@ -100,7 +100,7 @@
       "sol_date": null
     },
     {
-      "id": "e50e7c2a-dda8-4abd-9a27-879575cee52e",
+      "id": "9bf1b568-d922-4aad-a112-8c7a352ccd32",
       "case_number": "Pre-filing",
       "case_name": "Suter, Kristen",
       "case_type": "Medical Malpractice",
@@ -118,7 +118,7 @@
       "sol_date": null
     },
     {
-      "id": "55eebb50-6f8c-49a9-8c79-d9cace0337b1",
+      "id": "9bf1b568-d922-4aad-a112-8c7a352ccd32",
       "case_number": "Pre-filing",
       "case_name": "Taylor, Robert",
       "case_type": "Catastrophic Injury",
@@ -154,7 +154,7 @@
       "sol_date": null
     },
     {
-      "id": "7a6e5ea1-b0dd-43a2-ac44-3119e841782d",
+      "id": "9bf1b568-d922-4aad-a112-8c7a352ccd32",
       "case_number": "Pre-filing",
       "case_name": "Lashlee, Hagan",
       "case_type": "MVA",
@@ -208,7 +208,7 @@
       "sol_date": null
     },
     {
-      "id": "2deb945c-0396-4a53-9ff3-b1d878d33bcd",
+      "id": "9bf1b568-d922-4aad-a112-8c7a352ccd32",
       "case_number": "Pre-filing",
       "case_name": "Holder, Ryan",
       "case_type": "MVA",
@@ -226,7 +226,7 @@
       "sol_date": null
     },
     {
-      "id": "38813c2c-d6e1-4bae-974b-77bcef525909",
+      "id": "9bf1b568-d922-4aad-a112-8c7a352ccd32",
       "case_number": "Pre-filing",
       "case_name": "Williams, Veronica",
       "case_type": "MVA",
@@ -244,7 +244,7 @@
       "sol_date": null
     },
     {
-      "id": "1cde2f1e-01a1-48cb-afd4-a0eccdafa4bf",
+      "id": "9bf1b568-d922-4aad-a112-8c7a352ccd32",
       "case_number": "Pre-filing",
       "case_name": "Surguine, Christopher",
       "case_type": "MVA",
@@ -280,7 +280,7 @@
       "sol_date": null
     },
     {
-      "id": "b16215bb-9e86-4dc3-8195-82cce2d1a26f",
+      "id": "9bf1b568-d922-4aad-a112-8c7a352ccd32",
       "case_number": "Pre-filing",
       "case_name": "Jackson v. Dreamland Ballroom",
       "case_type": "Personal Injury",
@@ -298,7 +298,7 @@
       "sol_date": null
     },
     {
-      "id": "b7b4520e-f1a8-4926-a2cd-ccb1dff15314",
+      "id": "9bf1b568-d922-4aad-a112-8c7a352ccd32",
       "case_number": "Pre-filing",
       "case_name": "Billingsley v. Dedman",
       "case_type": "Wrongful Death",

@@ -174,6 +174,7 @@ class CaseboardApp(App):
         Binding("a", "add_case", "Add", show=True),
         Binding("e", "edit_field", "Edit", show=False),
         Binding("f", "quick_focus", "Focus", show=True),
+        Binding("h", "view_focus_history", "History", show=True),
         Binding("n", "toggle_attention", "Needs Attention", show=True),
         Binding("d", "delete_case", "Delete", show=True),
         Binding("/", "filter_cases", "Filter", show=True),
@@ -524,6 +525,17 @@ class CaseboardApp(App):
             self._apply_change("input-focus", value)
 
         self.push_screen(TextPrompt("Update focus", initial=current_value), _complete)
+
+    def action_view_focus_history(self) -> None:
+        """View focus history for the selected case."""
+        if not self.filtered_indices:
+            return
+        case = self.cases[self.filtered_indices[self.selected_row]]
+        
+        # Import here to avoid circular import
+        from .screens import FocusHistoryScreen
+        
+        self.push_screen(FocusHistoryScreen(case.id, case.case_number, case.case_name))
 
     def action_toggle_attention(self) -> None:
         if not self.filtered_indices:
