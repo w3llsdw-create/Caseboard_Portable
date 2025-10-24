@@ -187,13 +187,13 @@
     </div>
   </div>
 
-  <div id="pip" class="fixed bottom-4 right-4 z-[60]">
-    <div class="mb-2 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-slate-200 ring-1 ring-white/10">
+  <div id="pip" class="fixed bottom-4 right-4 z-[60] group">
+    <div class="mb-2 inline-flex items-center gap-2 rounded-full bg-ink2/90 backdrop-blur px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-slate-200 ring-1 ring-white/20 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
       <span class="text-slate-300">PiP</span>
-      <button data-size="sm" class="rounded-full bg-white/10 px-2 py-1 hover:bg-white/20">Sm</button>
-      <button data-size="md" class="rounded-full bg-white/10 px-2 py-1 hover:bg-white/20">Md</button>
-      <button data-size="lg" class="rounded-full bg-white/10 px-2 py-1 hover:bg-white/20">Lg</button>
-      <button id="pip-hide" class="rounded-full bg-white/10 px-2 py-1 hover:bg-white/20">Hide</button>
+      <button data-size="sm" class="rounded-full bg-white/10 px-2 py-1 hover:bg-white/20 transition-colors">Sm</button>
+      <button data-size="md" class="rounded-full bg-white/10 px-2 py-1 hover:bg-white/20 transition-colors">Md</button>
+      <button data-size="lg" class="rounded-full bg-white/10 px-2 py-1 hover:bg-white/20 transition-colors">Lg</button>
+      <button id="pip-hide" class="rounded-full bg-white/10 px-2 py-1 hover:bg-white/20 transition-colors">Hide</button>
     </div>
     <div id="pip-frame" class="cursor-move overflow-hidden rounded-xl bg-black ring-1 ring-white/10 shadow-xl">
       <iframe

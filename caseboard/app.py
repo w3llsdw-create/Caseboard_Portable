@@ -210,7 +210,7 @@ class CaseboardApp(App):
     # Layout & lifecycle
     # ------------------------------------------------------------------
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
+        yield Header(show_clock=True, time_format="%I:%M:%S %p")
         with Horizontal(id="layout"):
             with Vertical(id="table-pane"):
                 yield Static("Active Caseload", id="table-title")
@@ -338,14 +338,14 @@ class CaseboardApp(App):
             table.show_cursor = False
         self.refresh(layout=True)
 
-    def _select_row(self, position: int) -> None:
+    def _select_row(self, position: int, *, update_cursor: bool = True) -> None:
         if not self.filtered_indices:
             self.selected_row = 0
             self._populate_editor(None)
             return
         self.selected_row = max(0, min(position, len(self.filtered_indices) - 1))
         case = self.cases[self.filtered_indices[self.selected_row]]
-        if self.table:
+        if update_cursor and self.table:
             self.table.move_cursor(row=self.selected_row, column=0, animate=False, scroll=True)
         self._populate_editor(case)
 
@@ -373,8 +373,11 @@ class CaseboardApp(App):
         if isinstance(self.inputs["case_name"], Input):
             self.inputs["case_name"].value = case.case_name  # type: ignore[assignment]
         if isinstance(self.inputs["case_type"], Select):
-            options = ensure_case_type_options([c.case_type for c in self.cases])
-            self.inputs["case_type"].options = options  # type: ignore[assignment]
+            # Only update options if they might have changed
+            current_options = self.inputs["case_type"].options  # type: ignore[assignment]
+            if not current_options or case.case_type not in [opt[1] for opt in current_options]:
+                options = ensure_case_type_options([c.case_type for c in self.cases])
+                self.inputs["case_type"].options = options  # type: ignore[assignment]
             self.inputs["case_type"].value = case.case_type  # type: ignore[assignment]
         if isinstance(self.inputs["stage"], Input):
             self.inputs["stage"].value = case.stage  # type: ignore[assignment]
@@ -705,7 +708,7 @@ class CaseboardApp(App):
     # Events
     # ------------------------------------------------------------------
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
-        self._select_row(event.cursor_row)
+        self._select_row(event.cursor_row, update_cursor=False)
 
     def on_key(self, event: Key) -> None:
         if event.key == "tab":
