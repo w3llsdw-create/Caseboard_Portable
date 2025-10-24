@@ -710,13 +710,6 @@ class CaseboardApp(App):
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         self._select_row(event.cursor_row, update_cursor=False)
 
-    def on_key(self, event: Key) -> None:
-        if event.key == "tab":
-            widget = self.inputs.get("current_task")
-            if isinstance(widget, Input):
-                widget.focus()
-                event.stop()
-
     # ------------------------------------------------------------------
     # Status line
     # ------------------------------------------------------------------
