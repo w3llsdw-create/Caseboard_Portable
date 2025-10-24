@@ -40,13 +40,23 @@ This will start your caseboard dashboard immediately.
 - NYSE-style stock ticker
 - Blue terminal theme
 
+✅ **Focus History Tracking** (NEW!)
+- Automatically logs all "Current Focus" updates for each case
+- View complete focus history with timestamps
+- Press **H** in terminal UI to view history for selected case
+- Web API endpoint: `/cases/{case_id}/focus-history`
+- See [FOCUS_HISTORY_FEATURE.md](FOCUS_HISTORY_FEATURE.md) for details
+
 ✅ **Keyboard Controls**
 - **E** or **A** - Add new case
+- **F** - Update focus (current task)
+- **H** - View focus history for selected case
 - **R** - Reload cases from disk  
 - **Q** - Quit application
 
 ✅ **Data Persistence**
 - All cases saved in `data/cases.json`
+- Focus history logged in `data/focus_logs/`
 - Automatically backs up your data
 
 ### CURRENT REFACTOR STATUS

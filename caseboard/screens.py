@@ -16,6 +16,7 @@ from typing import Callable, Optional
 
 from .models import Case, parse_date
 from .constants import CASE_TYPE_OPTIONS, normalize_case_type
+from .data_store import CaseDataStore
 
 
 class ConfirmDialog(Screen):
@@ -664,3 +665,77 @@ class StockManagementScreen(Screen):
                     self.render_stocks()
             except (ValueError, IndexError):
                 pass
+
+
+class FocusHistoryScreen(Screen):
+    """Screen for viewing focus history for a case."""
+    
+    BINDINGS = [
+        ("escape", "app.pop_screen", "Close"),
+    ]
+
+    def __init__(self, case_id: str, case_number: str, case_name: str) -> None:
+        super().__init__()
+        self.case_id = case_id
+        self.case_number = case_number
+        self.case_name = case_name
+        self.data_store = CaseDataStore()
+
+    def compose(self):
+        yield Header(show_clock=False)
+        yield Container(
+            Vertical(
+                Label(f"Focus History: {self.case_name}", id="focus-history-title"),
+                Label(f"Case Number: {self.case_number}", id="focus-history-subtitle"),
+                
+                # Display focus history
+                VerticalScroll(
+                    Static(id="focus-history-list"),
+                    id="focus-history-scroll",
+                ),
+                
+                Horizontal(
+                    Button("Close (Esc)", id="close"),
+                    id="buttons",
+                ),
+                id="focus-history-form",
+            ),
+            id="focus-history-container",
+        )
+        yield Footer()
+
+    def on_mount(self) -> None:
+        """Render focus history when mounted."""
+        self.render_focus_history()
+
+    def render_focus_history(self) -> None:
+        """Render the focus history list."""
+        history_widget = self.query_one("#focus-history-list", Static)
+        
+        try:
+            entries = self.data_store.get_focus_history(self.case_id, self.case_number)
+            
+            if not entries:
+                history_widget.update("[dim]No focus history recorded for this case.[/]\n\n[dim]Focus updates will be logged here as you make changes.[/]")
+                return
+            
+            lines = []
+            lines.append("[bold cyan]Focus Update History[/bold cyan]")
+            lines.append("[dim]" + "─" * 80 + "[/dim]\n")
+            
+            # Show entries from most recent to oldest
+            for i, entry in enumerate(reversed(entries)):
+                timestamp_str = entry.timestamp.strftime("%Y-%m-%d %I:%M:%S %p")
+                lines.append(f"[bold white]{len(entries) - i}.[/bold white] [cyan]{timestamp_str}[/cyan] [dim]by {entry.actor}[/dim]")
+                lines.append(f"   [white]{entry.focus_text}[/white]\n")
+            
+            lines.append(f"\n[dim]Total entries: {len(entries)}[/dim]")
+            
+            history_widget.update("\n".join(lines))
+            
+        except Exception as e:
+            history_widget.update(f"[red]Error loading focus history: {e}[/]")
+
+    @on(Button.Pressed, "#close")
+    def close(self) -> None:
+        self.app.pop_screen()

@@ -11,6 +11,7 @@ from filelock import FileLock, Timeout
 from pydantic import ValidationError as PydanticValidationError
 
 from .exceptions import CorruptDataError, DataLockError, MigrationError, ValidationError
+from .focus_log import FocusLogManager
 from .schema import APP_SCHEMA_VERSION, CaseFileModel, CasePayload
 
 DATA_DIR = Path("data")
@@ -44,6 +45,7 @@ class CaseDataStore:
         self.lock_timeout = lock_timeout
         self.current_model: Optional[CaseFileModel] = None
         self.last_loaded_raw: Optional[str] = None
+        self.focus_log_manager = FocusLogManager()
 
     # ------------------------------------------------------------------
     # Load / backup / migrations
@@ -146,10 +148,8 @@ class CaseDataStore:
         previous: Optional[CaseFileModel] = None,
     ) -> SaveResult:
         if previous is None:
-            previous = self.current_model
-
-        if previous is None:
-            # Load to establish baseline
+            # Always load fresh from disk to ensure proper diff detection
+            # Don't use self.current_model as it may share object references
             previous = self.load(create_backup=False)
 
         resolved_cases = self._hydrate_identifiers(cases, previous)
@@ -261,12 +261,32 @@ class CaseDataStore:
         for case_no, case in current_map.items():
             if case_no not in previous_map:
                 log_lines.append(f"{timestamp} | {actor} | created | {case_no}")
+                # Log initial focus if present
+                if case.current_task and case.current_task.strip():
+                    self.focus_log_manager.add_entry(
+                        case.id, 
+                        case.case_number, 
+                        case.current_task,
+                        actor=actor
+                    )
                 continue
 
             diffs = self._diff_case(previous_map[case_no], case)
             if diffs:
                 diff_text = "; ".join(f"{field}:{before}->{after}" for field, before, after in diffs)
                 log_lines.append(f"{timestamp} | {actor} | updated | {case_no} | {diff_text}")
+                
+                # Log focus changes to the focus history
+                for field, before, after in diffs:
+                    if field == "current_task":
+                        # Only log non-empty focus updates
+                        if after and after != "∅":
+                            self.focus_log_manager.add_entry(
+                                case.id, 
+                                case.case_number, 
+                                case.current_task,
+                                actor=actor
+                            )
 
         if not log_lines:
             return []
@@ -309,6 +329,21 @@ class CaseDataStore:
         if isinstance(value, str) and len(value) > 64:
             return value[:61] + "…"
         return str(value)
+    
+    def get_focus_history(self, case_id: str, case_number: str, limit: Optional[int] = None):
+        """Get focus history for a case.
+        
+        Args:
+            case_id: The case ID
+            case_number: The case number
+            limit: Optional limit on number of entries to return (most recent first)
+            
+        Returns:
+            List of focus entries
+        """
+        if limit:
+            return self.focus_log_manager.get_recent_entries(case_id, case_number, limit)
+        return self.focus_log_manager.get_all_entries(case_id, case_number)
 
 
 def load_cases() -> List[CasePayload]:

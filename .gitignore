@@ -44,6 +44,7 @@ coverage/
 data/*.tmp
 data/*.backup_*
 data/backups/*.json
+data/focus_logs/
 
 # IDE
 .idea/
