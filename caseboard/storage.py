@@ -46,7 +46,7 @@ def load_cases(file_path: Path = DEFAULT_DATA_FILE) -> List[Case]:
     model = store.load()
     cases: List[Case] = []
     for payload in model.cases:
-        case_dict = payload.to_case_dict()
+        case_dict = payload.to_case_dict
         cases.append(Case.from_dict(case_dict))
     return cases
 
